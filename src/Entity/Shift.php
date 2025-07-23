@@ -11,6 +11,7 @@ use Symfony\Component\Uid\Uuid;
 use DateTimeImmutable;
 
 #[ORM\Entity(repositoryClass: ShiftRepository::class)]
+#[ORM\HasLifecycleCallbacks]
 class Shift
 {
 	#[ORM\Id]
@@ -21,25 +22,32 @@ class Shift
 	#[ORM\JoinColumn(nullable: false)]
 	private ?Deployment $deployment = null;
 
+
+    #[ORM\Column(type: 'datetime_immutable')]
+    private DateTimeImmutable $created_at;
+
+    #[ORM\Column(type: 'datetime_immutable')]
+    private DateTimeImmutable $updated_at;
+
 	public function __construct(
 		Deployment $deployment,
-		
+
 		#[ORM\Column]
 		private DateTimeImmutable $date,
-		
+
 		#[ORM\Column]
 		private float $worked,
-		
+
 		#[ORM\Column(nullable: true, type: 'decimal', precision: 10, scale: 2)]
 		private ?float $pay = null,
 
-		?Uuid $table_id = null,
-		
 		?Uuid $id = null,
 	){
 		$this->id = $id ?? Uuid::v4();
+        $this->created_at = new DateTimeImmutable();
+        $this->updated_at = new DateTimeImmutable();
 
-		$deployment->addShift($this);
+        $deployment->addShift($this);
 	}
 
 	public function getId(): Uuid
@@ -94,4 +102,20 @@ class Shift
 
 		return $this;
 	}
+
+    #[ORM\PreUpdate]
+    public function onUpdate(): void
+    {
+        $this->updated_at = new DateTimeImmutable();
+    }
+
+    public function getCreatedAt(): DateTimeImmutable
+    {
+        return $this->created_at;
+    }
+
+    public function getUpdatedAt(): DateTimeImmutable
+    {
+        return $this->updated_at;
+    }
 }

@@ -13,6 +13,7 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Symfony\Component\Uid\Uuid;
 use DateTimeImmutable;
+use App\Enum\DeploymentStatus;
 
 #[ORM\Entity(repositoryClass: DeploymentRepository::class)]
 class Deployment
@@ -27,24 +28,28 @@ class Deployment
 	#[ORM\OneToMany(targetEntity: Shift::class, mappedBy: 'deployment', cascade: ['persist','remove'], orphanRemoval: true)]
 	private Collection $shift;
 
-	public function __construct(
-		
+    #[ORM\Column(enumType: DeploymentStatus::class)]
+    private DeploymentStatus $status = DeploymentStatus::ACTIVE;
+
+
+    public function __construct(
+
 		#[ORM\Column(type: Types::DATE_IMMUTABLE)]
 		private DateTimeImmutable $start_date,
-		
+
 		#[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
 		private ?DateTimeImmutable $end_date = null,
-		
+
 		#[ORM\Column(length: 128)]
 		private ?string $name = null,
 
 		#[ORM\Column(nullable: true)]
 		private ?int $shift_needed = null,
-		
+
 		?Uuid $id = null,
 	){
 		$this->id = $id ?? Uuid::v4();
-		
+
 		$this->shift = new ArrayCollection();
 	}
 
@@ -132,4 +137,16 @@ class Deployment
 
 		return $this;
 	}
+
+    public function getStatus(): DeploymentStatus
+    {
+        return $this->status;
+    }
+
+    public function setStatus(DeploymentStatus $status): static
+    {
+        $this->status = $status;
+
+        return $this;
+    }
 }

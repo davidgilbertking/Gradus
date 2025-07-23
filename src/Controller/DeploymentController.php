@@ -2,7 +2,7 @@
 
 namespace App\Controller;
 
-use App\DTO\Deployment\Deployment as DeploymentDTO;
+use App\DTO\CreateDeployment;
 use App\Entity\Deployment;
 use App\Repository\DeploymentRepository;
 use DateTimeImmutable;
@@ -18,74 +18,77 @@ use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
-#[Route('/api/deployment/', name: 'deployment_')]
+#[Route('/api/deployment', name: 'deployment_')]
 final class DeploymentController extends AbstractController
 {
-	public function __construct(
-		private readonly ValidatorInterface $validator,
-		private readonly SerializerInterface $serializer,
-		private readonly EntityManagerInterface $entityManager,
-	) {	}
+    public function __construct(
+        private readonly ValidatorInterface $validator,
+        private readonly SerializerInterface $serializer,
+        private readonly EntityManagerInterface $entityManager,
+    ) {	}
 
-	#[Route('/{id}', methods: ['GET'], name: 'get_by_id')]
-	public function getById(?Deployment $deployment): JsonResponse
-	{
-		($deployment) ?: throw new NotFoundHttpException('Deployment not found');
+    #[Route('/{id}', methods: ['GET'], name: 'get_by_id')]
+    public function getById(?Deployment $deployment): JsonResponse
+    {
+        ($deployment) ?: throw new NotFoundHttpException('Deployment not found');
 
-		$resultDTO = new DeploymentDTO(
-			name: $deployment->getName(),
-			start_date: $deployment->getStartDate()->format('Y-m-d'),
-			end_date: $deployment->getEndDate()->format('Y-m-d'),
-			shift_needed: $deployment->getShiftNeeded()
-		);
+        $result = [
+            'id' => $deployment->getId(),
+            'name' => $deployment->getName(),
+            'start_date' => $deployment->getStartDate()->format('Y-m-d'),
+            'end_date' => $deployment->getEndDate()?->format('Y-m-d'),
+            'shift_needed' => $deployment->getShiftNeeded(),
+            'status' => $deployment->getStatus()->value,
+        ];
 
-		return new JsonResponse( $this->serializer->serialize($resultDTO, 'json', ['groups' => ['read']]));
-	}
+        return new JsonResponse($result);
+    }
 
-	#[Route('/{name}', methods: ['GET'], name: 'get_all_by_name')]
-	public function getAllByName(?string $name, DeploymentRepository $repo): JsonResponse
-	{
-		$deployments = $repo->findBy(['name' => $name]);
+    #[Route('/by-name/{name}', methods: ['GET'], name: 'get_all_by_name')]
+    public function getAllByName(string $name, DeploymentRepository $repo): JsonResponse
+    {
+        $deployments = $repo->findBy(['name' => $name]);
 
-		$result = [];
-		foreach($deployments as $deployment){
-			$DTO = new DeploymentDTO(
-				name: $deployment->getName(),
-				start_date: $deployment->getStartDate()->format('Y-m-d'),
-				end_date: $deployment->getEndDate()->format('Y-m-d'),
-				shift_needed: $deployment->getShiftNeeded()
-			);
-			$result[] = $this->serializer->serialize($DTO, 'json', ['groups' => ['read']]);
-		}
+        $result = [];
+        foreach($deployments as $deployment){
+            $result[] = [
+                'id' => $deployment->getId(),
+                'name' => $deployment->getName(),
+                'start_date' => $deployment->getStartDate()->format('Y-m-d'),
+                'end_date' => $deployment->getEndDate()?->format('Y-m-d'),
+                'shift_needed' => $deployment->getShiftNeeded(),
+                'status' => $deployment->getStatus()->value,
+            ];
+        }
 
-		return new JsonResponse($result[]);
-	}
+        return new JsonResponse($result);
+    }
 
-	#[Route('', methods: ['POST'], name: 'create')]
-	public function create(Request $request): JsonResponse
-	{
-		/** @var DeploymentDTO $serializedRequest */
-		$serializedRequest = $this->serializer->deserialize(
-			$request->getContent(),
-			DeploymentDTO::class,
-			'json',
-			['groups' => ['write']]
-		);
+    #[Route('', methods: ['POST'], name: 'create')]
+    public function create(Request $request): JsonResponse
+    {
+        /** @var CreateDeployment $dto */
+        $dto = $this->serializer->deserialize(
+            $request->getContent(),
+            CreateDeployment::class,
+            'json',
+            ['groups' => ['write']]
+        );
 
-		$deployment = new Deployment(
-			start_date: new DateTimeImmutable($serializedRequest->start_date),
-			end_date: $serializedRequest->end_date ? new DateTimeImmutable($serializedRequest->end_date) : null,
-			name: $serializedRequest->name,
-			shift_needed: $serializedRequest->shift_needed,
-			id: Uuid::fromString($serializedRequest->id)
-		);
+        $errors = $this->validator->validate($dto, null, ['Default', 'write']);
+        count($errors) === 0 ?: throw new ValidationFailedException($dto, $errors);
 
-		$this->entityManager->persist($deployment);
-		$this->entityManager->flush();
+        $deployment = new Deployment(
+            start_date: new DateTimeImmutable($dto->start_date),
+            end_date: $dto->end_date ? new DateTimeImmutable($dto->end_date) : null,
+            name: $dto->name,
+            shift_needed: $dto->shift_needed,
+            id: Uuid::fromString($dto->id)
+        );
 
-		$errors = $this->validator->validate($serializedRequest, null, ['Default', 'write']);
-		count($errors) == 0 ?: throw new ValidationFailedException($serializedRequest, $errors);
+        $this->entityManager->persist($deployment);
+        $this->entityManager->flush();
 
-		return new JsonResponse(['status' => 'Deployment created'], Response::HTTP_CREATED);
-	}
+        return new JsonResponse(['status' => 'Deployment created'], Response::HTTP_CREATED);
+    }
 }

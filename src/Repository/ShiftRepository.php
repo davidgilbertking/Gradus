@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\Shift;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use App\Enum\DeploymentStatus;
 
 /**
  * @extends ServiceEntityRepository<Shift>
@@ -39,4 +40,15 @@ class ShiftRepository extends ServiceEntityRepository
 	//            ->getOneOrNullResult()
 	//        ;
 	//    }
+
+    public function findByDeploymentStatusSorted(DeploymentStatus $status, string $direction = 'ASC'): array
+    {
+        return $this->createQueryBuilder('s')
+                    ->join('s.deployment', 'd')
+                    ->andWhere('d.status = :status')
+                    ->setParameter('status', $status->value)
+                    ->orderBy('s.date', $direction === 'DESC' ? 'DESC' : 'ASC')
+                    ->getQuery()
+                    ->getResult();
+    }
 }
